@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<link rel="stylesheet" href="./bootstrap.min.css"/>
+		<link rel="stylesheet" href="d3.slider.css" />
+	</head>
+	
+	<body>	
+		<script src="./jquery-3.2.1.min.js"> </script>
+		<script src="./bootstrap.min.js"> </script>
+		<script src="./d3.min.js"> </script>
+		<script src="./d3.slider.js"></script>
+		<script src="./d3.rebind.js"></script>
+		
+		
+		
+		
+		<div class="container"> 
+		<div class = "row"> <div class="col-md-6 col-md-offset-3">
+			<h2>Interactive neural network demo - change the network settings!</h2>
+			
+			<p>The example below shows an Artificial Neural Network with 2 nodes in the input layer, 2 nodes in the hidden layer, and 1 node in the output layer. Circles represent neurons and lines represent connection weights (red for negative, black for positive weights). The white lines inside the neurons indicate the neuron bias.</p>
+			<p>Change the neural network weights and neuron bias using the sliders, then watch as the prediction errors change too!</p>
+		
+		<div id="NetworkGraph"></div>
+		<br>
+		<div id="ErrorLines"></div>
+		<script>
+			
+			// Data and network setup
+			var myData = [
+			{"x1": 2.781083600, "x2":  2.550537003, "y":  0},
+			{"x1": 1.465489372, "x2":  2.362125076, "y":  0},
+			{"x1": 3.396561688, "x2":  4.400293529, "y":  0},
+			{"x1": 1.388070190, "x2":  1.850220317, "y":  0},
+			{"x1": 3.064072320, "x2":  3.005305973, "y":  0},
+			{"x1": 7.627531214, "x2":  2.759262235, "y":  1},
+			{"x1": 5.332441248, "x2":  2.088626775, "y":  1},
+			{"x1": 6.922596716, "x2":  1.771063670, "y":  1},
+			{"x1": 8.675418651, "x2": -0.242068655, "y":  1},
+			{"x1": 7.673756466, "x2":  3.508563011, "y":  1},			
+			];
+			
+			var myNeurons = [
+			  { "x":  0, "y": +1, "r": 50, "b":    0, "c" : "black"},
+			  { "x":  0, "y": -1, "r": 50, "b":    0, "c" : "black"},
+			  { "x":  1, "y": +1, "r": 50, "b": 1.56, "c" : "black"},
+			  { "x":  1, "y": -1, "r": 50, "b": 0.76, "c" : "black"},
+			  { "x":  2, "y":  0, "r": 50, "b": 3.66, "c" : "black"},
+			  ];
+			  
+			var myWeights = [
+			  { "fromNeuron":  0, "toNeuron": 2, "t": -2.1, "c" : "black"},
+			  { "fromNeuron":  0, "toNeuron": 3, "t": -1.8, "c" : "black"},
+			  { "fromNeuron":  1, "toNeuron": 2, "t": +2.7, "c" : "black"},
+			  { "fromNeuron":  1, "toNeuron": 3, "t": +2.6, "c" : "black"},
+			  { "fromNeuron":  2, "toNeuron": 4, "t": -6.8, "c" : "black"},
+			  { "fromNeuron":  3, "toNeuron": 4, "t": -1.0, "c" : "black"},
+			  ];
+			
+			function forwardPropagate(d,wts){
+				var networkOutput = [];
+				//
+				for (n=0;n<d.length;n++) {
+				
+					//Hidden Layer
+					var in3 = d[n].x1*wts[0].t + d[n].x2*wts[2].t + myNeurons[2].b;
+					var in4 = d[n].x1*wts[1].t + d[n].x2*wts[3].t + myNeurons[3].b;
+					var out3 = activate(in3);
+					var out4 = activate(in4);
+					
+					//Output Layer
+					var in5 = out3*wts[4].t+out4*wts[5].t + myNeurons[4].b;
+					var out5 = activate(in5);
+					
+					<!-- console.log(in5); -->
+					<!-- console.log(out5); -->
+					
+					obj = {"predicted" : out5, "target": d[n].y};
+					networkOutput.push(obj);
+					
+				}
+				
+				return networkOutput;
+			}
+			
+			function activate(x){
+				return 1/(1+Math.exp(-x));
+			}
+			
+
+			// Create SVG 
+			var wd = 600;
+			var ht = 300;
+			
+			var svg = d3.select('#NetworkGraph').append("svg")
+												.style("width",wd)
+												.style("height",ht);
+															
+															
+															
+			var x = d3.scaleLinear().domain([-1, 2.5])
+									.range([0, wd]);
+			var y = d3.scaleLinear().domain([2,-2])
+									.range([0, ht]);
+			var z = d3.scaleLinear().domain([-7,7])
+									.range([0, 100]);
+			var z_inv = d3.scaleLinear().domain([0, 100])
+									.range([-5,5]);
+			var z_rng = z.domain();
+			z_rng = z_rng[1] - z_rng[0]; 
+			
+			// Make Axis if wanted
+			<!-- var xAxis = d3.axisBottom(x); -->
+			<!-- var yAxis = d3.axisLeft(y); -->
+			<!-- svg.append("g")		 -->
+				<!-- .attr("class","axis") -->
+				<!-- .attr("transform","translate(0, " + y(0) + ")") -->
+				<!-- .call(xAxis); -->
+			<!-- svg.append("g") -->
+				<!-- .attr("class","axis") -->
+				<!-- .attr("transform","translate(" + x(0) + ",0)") -->
+				<!-- .call(yAxis); -->
+									
+			var weightLine = d3.select("#NetworkGraph").select("svg")
+							.selectAll("line").data(myWeights);
+								
+			weightLine.enter().append("line")
+				.attr(      	"id", function(d,i) {return   'weight' + i  			 ;})
+				.attr(          "x1", function(d)   {return x(myNeurons[d.fromNeuron].x) ;})
+				.attr(          "y1", function(d)   {return y(myNeurons[d.fromNeuron].y) ;})
+				.attr(          "x2", function(d)   {return x(myNeurons[d.toNeuron].x) 	 ;})
+				.attr(          "y2", function(d)   {return y(myNeurons[d.toNeuron].y) 	 ;})
+				.attr(      "stroke", function(d)   {return   d.c           		 	 ;})
+				.attr("stroke-width", function(d)   {return   d.t           			 ;});
+				
+				
+			var circ = d3.select("#NetworkGraph").select("svg")
+							.selectAll("circle").data(myNeurons);
+		
+			circ.enter().append("circle")
+				.attr(    "r", function(d) {return   d.r  ;})
+				.attr(   "cx", function(d) {return x(d.x) ;})
+				.attr(   "cy", function(d) {return y(d.y) ;})
+				.style("fill", function(d) {return   d.c  ;});
+				
+			var biasLine = d3.select("#NetworkGraph").select("svg")
+							.selectAll(".biasline").data(myNeurons.slice(2,5) );
+								
+			biasLine.enter().append("line")
+				.attr(       "class", "biasline")
+				.attr(      	"id", function(d,i) {return   'biasline' + i  ;})
+				.attr(          "x1", function(d)   {return x(d.x)            ;})
+				.attr(          "y1", function(d)   {return y(d.y) + d.r      ;})
+				.attr(          "x2", function(d)   {return x(d.x) 	          ;})
+				.attr(          "y2", function(d)   {return y(d.y) - d.r      ;})
+				.attr(      "stroke", function(d)   {return   "white"         ;})
+				.attr("stroke-width", function(d)   {return   3	              ;});
+
+				
+			// Error plots	
+			var wdE = 600;
+			var htE = 100;
+			var xE = d3.scaleLinear().domain([-5, 5])
+									.range([0, wdE]);
+			var yE = d3.scaleLinear().domain([11,-1])
+									.range([0, htE]);
+			
+			var svgErr = d3.select('#ErrorLines').append("svg")
+												.style("width",wdE)
+												.style("height",htE + 100);
+								
+			var eInitial = forwardPropagate(myData,myWeights);
+			
+			var errorLine = d3.select("#ErrorLines").select("svg")
+							.selectAll("line").data(eInitial);
+								
+			errorLine.enter().append("line")
+				.attr(      	"id", function(d,i) {return   'error' + i  	 		  ;})
+				.attr(          "x1", function(d,i) {return  xE(0) 			 		  ;})
+				.attr(          "y1", function(d,i) {return  yE(i) + 30		 		  ;})
+				.attr(          "x2", function(d,i) {return  xE(d.predicted-d.target) ;})
+				.attr(          "y2", function(d,i) {return  yE(i) + 30		 	      ;})
+				.attr(      "stroke", function(d,i) {
+										if ((d.predicted-d.target)>=0){return "black";} 
+									   else {return "red";} })
+				.attr("stroke-width", function(d)   {return   3    			 		  ;});
+			
+			
+			function updateError(){
+				var eUpdate = forwardPropagate(myData,myWeights);
+				
+				var errorLine = d3.select("#ErrorLines").select("svg")
+							.selectAll("line").data(eUpdate);
+				
+				errorLine.transition(0,500)
+					.attr("x2", function(d,i) {return  xE(d.predicted - d.target) ;})
+					.attr("stroke", 	function(d,i) {
+							if ((d.predicted-d.target)>=0){return "black";} 
+						   else {return "red";} });
+			}
+			
+		</script>
+		
+		
+		
+		
+		
+		<div id="weightSlider1" style="float:left;margin-left:100px;margin-right:10px;"></div>
+		<div id="weightSlider2" style="float:left;margin-left:10px;margin-right:10px;"></div>
+		<div id="weightSlider3" style="float:left;margin-left:10px;margin-right:10px;"></div>
+		<div id="weightSlider4" style="float:left;margin-left:10px;margin-right:10px;"></div>
+		<div id="weightSlider5" style="float:left;margin-left:10px;margin-right:10px;"></div>
+		<div id="weightSlider6" style="float:left;margin-left:10px;margin-right:10px;"></div>
+		<script>
+						
+			function setupWeightSlider(n) {
+				var newSlider = d3.slider().value(z(myWeights[n].t)).orientation("vertical").on("slide",
+					function (val){
+						myWeights[n].t = z_inv(val);
+						if (z_inv(val) > 0){var c = "black";} 
+						else {var c = "red";} 
+						
+						d3.select('#weight'+n)
+							.attr("stroke-width", Math.abs(z_inv(val)*5) )
+							.attr("stroke", c);	
+						
+						updateError();
+					}
+					);
+					
+				if (myWeights[n].t > 0){var c = "black";} 
+				else {var c = "red";} 
+				
+				d3.select('#weight'+n)
+					.attr("stroke-width", Math.abs(myWeights[n].t*3) )
+					.attr("stroke", c);			
+				return newSlider;
+			}
+			
+			d3.select('#weightSlider1').call( setupWeightSlider(0) );
+			d3.select('#weightSlider2').call( setupWeightSlider(1) );
+			d3.select('#weightSlider3').call( setupWeightSlider(2) );
+			d3.select('#weightSlider4').call( setupWeightSlider(3) );
+			d3.select('#weightSlider5').call( setupWeightSlider(4) );
+			d3.select('#weightSlider6').call( setupWeightSlider(5) );
+			
+			
+		</script>
+
+		<div id="biasSlider1" style="float:left;margin-left:100px;margin-right:10px;"></div>
+		<div id="biasSlider2" style="float:left;margin-left:10px;margin-right:10px;"></div>
+		<div id="biasSlider3" style="float:left;margin-left:10px;margin-right:10px;"></div>
+
+		<script>
+						
+			function setupBiasSlider(n) {
+				var newSlider = d3.slider().value(z(myNeurons[n+2].b)).orientation("vertical").on("slide",
+					function (val){
+						myNeurons[n+2].b = z_inv(val);
+
+						var xval = x(myNeurons[n+2].x) + myNeurons[n+2].b*myNeurons[n+2].r/z_rng*3/2;
+
+						d3.select('#biasline'+n)
+							.attr("x1", xval )
+							.attr("x2", xval );
+						
+						updateError();
+					}
+					);
+				
+				var xval = x(myNeurons[n+2].x) + myNeurons[n+2].b*myNeurons[n+2].r/z_rng*3/2;
+
+				d3.select('#biasline'+n)
+					.attr("x1", xval )
+					.attr("x2", xval );
+
+				return newSlider;
+			}
+			
+			d3.select('#biasSlider1').call( setupBiasSlider(0) );
+			d3.select('#biasSlider2').call( setupBiasSlider(1) );
+			d3.select('#biasSlider3').call( setupBiasSlider(2) );
+			
+			
+		</script>
+
+
+		<script>
+			// Add annotations
+
+			//Add the SVG Text Element to the svgContainer
+			var textError = svgErr.selectAll("#text")
+	                        .data([0])
+	                        .enter()
+	                        .append("text");
+			
+			//Add SVG Text Element Attributes
+			textError
+	             .attr("x", 180)
+	             .attr("y", 20)
+	             .text("Neural Net Prediction (Error)")
+	             .attr("font-family", "sans-serif")
+	             .attr("font-size", "20px")
+	             .attr("fill", "black")
+	             .attr("font-weight","bold");
+
+
+             //Add the SVG Text Element to the svgContainer
+			var textToSmall = svgErr.selectAll("#text")
+	                        .data([0])
+	                        .enter()
+	                        .append("text");
+			
+			//Add SVG Text Element Attributes
+			textToSmall
+	             .attr("x", 100)
+	             .attr("y", 80)
+	             .text("Too small")
+	             .attr("font-family", "sans-serif")
+	             .attr("font-size", "16px")
+	             .attr("fill", "black");
+
+             //Add the SVG Text Element to the svgContainer
+			var textTooLarge = svgErr.selectAll("#text")
+	                        .data([0])
+	                        .enter()
+	                        .append("text");
+			
+			//Add SVG Text Element Attributes
+			textTooLarge
+	             .attr("x", 450)
+	             .attr("y", 80)
+	             .text("Too large")
+	             .attr("font-family", "sans-serif")
+	             .attr("font-size", "16px")
+	             .attr("fill", "black");
+
+              //Add the SVG Text Element to the svgContainer
+			var textCnxnStr = svgErr.selectAll("#text")
+	                        .data([0])
+	                        .enter()
+	                        .append("text");
+			
+			//Add SVG Text Element Attributes
+			textCnxnStr
+	             .attr("x", 90)
+	             .attr("y", 180)
+	             .text("Connection Strengths")
+	             .attr("font-family", "sans-serif")
+	             .attr("font-size", "20px")
+	             .attr("fill", "black")
+	             .attr("font-weight","bold");
+
+            //Add the SVG Text Element to the svgContainer
+			var textBias = svgErr.selectAll("#text")
+	                        .data([0])
+	                        .enter()
+	                        .append("text");
+			
+			//Add SVG Text Element Attributes
+			textBias
+	             .attr("x", 370)
+	             .attr("y", 180)
+	             .text("Neuron Bias")
+	             .attr("font-family", "sans-serif")
+	             .attr("font-size", "20px")
+	             .attr("fill", "black")
+	             .attr("font-weight","bold");
+
+		</script>
+		</div>
+		
+		</div></div>
+	</body>
+	
+</html>
